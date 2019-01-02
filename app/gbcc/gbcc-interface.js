@@ -6,6 +6,12 @@ Interface = (function() {
   var roomNames = {};
 
   function displayLoginInterface(rooms, components) {
+    if ($(".login-room-button-container").length > 0) {
+      var widgetIndex = $(".netlogo-widget").length - 1;
+      var roomName = rooms[rooms.length - 1];
+      createButton(roomName, widgetIndex);
+      return;
+    } 
     var roomButtonHtml, roomButtonId;
     setupItems();
     addTeacherControls();
@@ -17,7 +23,9 @@ Interface = (function() {
     $(".admin-body").css("display","inline");
     // hide all widgets
     $(".netlogo-widget").addClass("hidden");
+    $(".gbcc-widget").addClass("hidden");    
     $(".netlogo-model-title").removeClass("hidden");
+    $("#netlogo-title").html("");
     // show Welcome Students reporter
     var index = components.componentRange[0];
     var widget = "<div id='netlogo-monitor-"+index+"' class='netlogo-widget netlogo-monitor netlogo-output login login-welcome-student'>"+
@@ -52,34 +60,7 @@ Interface = (function() {
     for (var i=0; i<rooms.length; i++) {
       // a room button
       index++;
-      roomName = rooms[i];
-      passCode = "";
-      
-      if (roomName.indexOf(":") > 0) { 
-        passCode = roomName.substr(roomName.indexOf(":")+1, roomName.length).toUpperCase().trim();
-        roomName = roomName.substr(0,roomName.indexOf(":")); 
-      }
-      roomNames["netlogo-button-"+index] = rooms[i];
-      passCodes["netlogo-button-"+index] = passCode;
-      widget = "<button id='netlogo-button-"+index+"'class='netlogo-widget netlogo-command login login-room-button'"+
-      " type='button'>"+
-//      "<div class='netlogo-button-agent-context'></div> <span class='netlogo-label'>"+markdown.toHTML(roomName)+"</span> </button>";
-    "<div class='netlogo-button-agent-context'></div> <span class='netlogo-label'>"+roomName+"</span> </button>";
-
-      $(".login-room-button-container").append(widget);
-      $(".login-room-button-container").on("click", "#netlogo-button-"+index, function() {
-        var myRoom = roomNames[$(this).attr("id")];
-        if (passCodes[$(this).attr("id")] === "") {
-          socket.emit("enter room", {room: myRoom});  
-        } else {
-          var response = window.prompt("What is the Entry Code?","").toUpperCase().trim();
-          if (response === passCodes[$(this).attr("id")]) {
-            socket.emit("enter room", {room: myRoom});
-          } else {
-            alert("Incorrect Password");
-          }
-        }
-      });
+      createButton(rooms[i], index);
     }
     widget  = "<div class='netlogo-widget login login-tips'>";
     widget += "  <span id='tips' style='display:none'>";
@@ -93,49 +74,112 @@ Interface = (function() {
       ($("#tips").css("display") === "none") ? $("#tips").css("display","inline-block") : $("#tips").css("display","none"); 
     });
     $("#exportHtmlButton").css("display","none");
-    setupExtensions();
+    $(".netlogo-toggle-container").css("display","none");
+  }
+  
+  function createButton(roomName, index) {
+    passCode = "";
+    if (roomName.indexOf(":") > 0) { 
+      passCode = roomName.substr(roomName.indexOf(":")+1, roomName.length).toUpperCase().trim();
+      roomName = roomName.substr(0,roomName.indexOf(":")); 
+    }
+    roomNames["netlogo-button-"+index] = roomName;
+    passCodes["netlogo-button-"+index] = passCode;
+    widget = "<button id='netlogo-button-"+index+"'class='netlogo-widget netlogo-command login login-room-button' type='button'>";
+    widget += "<div class='netlogo-button-agent-context'></div> <span class='netlogo-label'>"+roomName+"</span> </button>";
+    $(".login-room-button-container").append(widget);
+    $(".login-room-button-container").on("click", "#netlogo-button-"+index, function() {
+      var myRoom = roomNames[$(this).attr("id")];
+      if (passCodes[$(this).attr("id")] === "") {
+        socket.emit("enter room", {room: myRoom});  
+      } else {
+        var response = window.prompt("What is the Entry Code?","").toUpperCase().trim();
+        if (response === passCodes[$(this).attr("id")]) {
+          socket.emit("enter room", {room: myRoom});
+        } else {
+          alert("Incorrect Password");
+        }
+      }
+    });
+  }
+  
+  function removeLoginButton(roomName) {
+    $(".login-room-button-container button .netlogo-label").each(function() { 
+      if ($(this).html() === roomName) {
+        $(this).parent().remove();
+      }
+    });
   }
 
   function displayTeacherInterface(room, components) {
     showItems(components.componentRange[0], components.componentRange[1]);
     $(".netlogo-export-wrapper").css("display","block");
-    //var sanitizedRoom = markdown.toHTML(room);
-    var sanitizedRoom = room;
-    $("#netlogo-title").html("<p>"+$("#netlogo-title").html()+" "+sanitizedRoom.substr(3,sanitizedRoom.length));
+    $(".netlogo-ugly-button").each(function() { if ($(this).html() === "HTML") { $(this).css("display","none"); } }) // hide it?
+    var sanitizedRoom = exports.toHTML(room);
+    $("#netlogo-title").html(sanitizedRoom.substring(3, sanitizedRoom.length));
     $(".netlogo-view-container").removeClass("hidden");
     $(".netlogo-tab-area").removeClass("hidden");
     $(".admin-body").css("display","none");
+    $($(".netlogo-toggle-container")[0]).css("display","flex");
+    if (activityType === "gbcc") { setupGbccMouseEvents(); }
   }
 
   function displayStudentInterface(room, components, activityType) {
     showItems(components.componentRange[0], components.componentRange[1]);
-    //var sanitizedRoom = markdown.toHTML(room);
-    var sanitizedRoom = room;
-    $("#netlogo-title").html("<p>"+$("#netlogo-title").html()+" "+sanitizedRoom.substr(3,sanitizedRoom.length));
+    $(".netlogo-export-wrapper").css("display","block");
+    $(".netlogo-ugly-button").each(function() { if ($(this).html() === "HTML") { $(this).css("display","none"); } })  // hide it?
+    var sanitizedRoom = exports.toHTML(room);
+    $("#netlogo-title").html(sanitizedRoom.substring(3, sanitizedRoom.length));
     $(".netlogo-view-container").removeClass("hidden");
     $(".admin-body").css("display","none");
     $(".teacher-controls").css("display","none");
     if (activityType === "hubnet") {
-      $(".netlogo-button:not(.hidden)").click(function(e){clickHandler(this, e, "button");});
-      $(".netlogo-slider:not(.hidden)").click(function(e){clickHandler(this, e, "slider");});
-      $(".netlogo-switcher:not(.hidden)").click(function(e){clickHandler(this, e, "switcher");});
-      $(".netlogo-chooser:not(.hidden)").click(function(e){clickHandler(this, e, "chooser");});
-      $(".netlogo-input-box:not(.hidden)").click(function(e){clickHandler(this, e, "inputBox");});
-      $(".netlogo-view-container:not(.hidden)").click(function(e){clickHandler(this, e, "view");});
+      $(".netlogo-view-container").css("pointer-events","auto");
+      $(".netlogo-button:not(.hidden)").click(function(e){clickHandlerButton(this, e, "button");});
+      $(".netlogo-button:not(.hidden) input").change(function(e){clickHandlerWidget(this, e, "button");});
+      $(".netlogo-slider:not(.hidden) input").change(function(e){clickHandlerWidget(this, e, "slider");});
+      $(".netlogo-switcher:not(.hidden) input").change(function(e){clickHandlerWidget(this, e, "switcher");});
+      $(".netlogo-chooser:not(.hidden) select").change(function(e){clickHandlerWidget(this, e, "chooser");});
+      $(".netlogo-input-box:not(.hidden) textarea").change(function(e){clickHandlerWidget(this, e, "inputBox");});
+      $(".netlogo-view-container").click(function(e){clickHandlerButton(this, e, "view");});
     } else {
+      $(".netlogo-view-container").css("pointer-events","auto");
       $(".netlogo-tab-area").removeClass("hidden");
     }
+    $($(".netlogo-toggle-container")[0]).css("display","flex");
+    if (activityType === "gbcc") { setupGbccMouseEvents(); }
+  }
+  
+  function setupGbccMouseEvents() {
+    $(".netlogo-view-container").on("mousedown", function(e){
+      if (procedures.gbccOnMousedown) {
+        offset = $(this).offset();
+        pxcor = universe.view.xPixToPcor(e.clientX - offset.left + window.pageXOffset);
+        pycor = universe.view.yPixToPcor(e.clientY - offset.top + window.pageYOffset);
+        session.runCode('try { var reporterContext = false; var letVars = { }; procedures["GBCC-ON-MOUSEDOWN"]("'+pxcor+'","'+pycor+'"); } catch (e) { if (e instanceof Exception.StopInterrupt) { return e; } else { throw e; } }');
+      }
+    });
+    $(".netlogo-view-container").on("mouseup", function(e){
+      if (procedures.gbccOnMouseup) {
+        offset = $(this).offset();
+        pxcor = universe.view.xPixToPcor(e.clientX - offset.left + window.pageXOffset);
+        pycor = universe.view.yPixToPcor(e.clientY - offset.top + window.pageYOffset);
+        session.runCode('try { var reporterContext = false; var letVars = { }; procedures["GBCC-ON-MOUSEUP"]("'+pxcor+'","'+pycor+'"); } catch (e) { if (e instanceof Exception.StopInterrupt) { return e; } else { throw e; } }');
+      }
+    });
   }
 
   function displayDisconnectedInterface() {
     $(".admin-body").css("display","inline");
     $(".admin-body").html("You have been disconnected. Please refresh the page to continue.");
     $(".netlogo-widget").addClass("hidden");
+    $(".gbcc-widget").addClass("hidden");
     $("#netlogo-model-container").css("display","none");
   }
 
   function displayAdminInterface(rooms) {
     $(".netlogo-widget").addClass("hidden");
+    $(".gbcc-widget").addClass("hidden");
     $("#netlogo-model-container").css("display","none");
     $(".admin-body").html(rooms);
   }
@@ -144,26 +188,35 @@ Interface = (function() {
     socket.emit("admin clear room", {roomName: roomName, school: school});
   }
 
-  function clickHandler(thisElement, e, widget) {
+  function clickHandlerButton(thisElement, e, widget) {
     var value;
     var id = $(thisElement).attr("id");
     var label = $("#"+id+" .netlogo-label").text();
     if (widget === "view") {
-      label = "view";
-      position = [ e.clientX, e.clientY ];
+      label = "View";
       offset = $(thisElement).offset();
-      offset = [ offset.left, offset.top ];
-      pixelDimensions = [ parseFloat($(thisElement).css("width")), parseFloat($(thisElement).css("height")) ];
-      percent = [ ((position[0] - offset[0]) / pixelDimensions[0]), ((position[1] - offset[1]) / pixelDimensions[1]) ];
-      patchDimensions = [ universe.model.world.worldwidth, universe.model.world.worldheight ];
-      value = [ (percent[0] * patchDimensions[0]) +  universe.model.world.minpxcor,
-      universe.model.world.maxpycor - (percent[1] * patchDimensions[1]) ]
+      value = [ universe.view.xPixToPcor(e.clientX - offset.left + window.pageXOffset), universe.view.yPixToPcor(e.clientY - offset.top + window.pageYOffset) ];
     } else if (widget === "button" ) {
       value = "";
     } else {
-      value = world.observer.getGlobal(label);
+      value = world.observer.getGlobal(label.toLowerCase());
       socket.emit("send reporter", {hubnetMessageSource: "server", hubnetMessageTag: label, hubnetMessage:value});
     }
+    socket.emit("send command", {hubnetMessageTag: label, hubnetMessage:value});
+  }
+  
+  function clickHandlerWidget(thisElement, e, widget) {
+    var value;
+    var id = $(thisElement).parent().attr("id");
+    var label = $("#"+id+" .netlogo-label").text();
+    value = world.observer.getGlobal(label.toLowerCase());
+    if (value == undefined) {
+      var id = $(thisElement).parent().parent().parent().attr("id");
+      var label = $("#"+id+" .netlogo-label").text();
+      value = world.observer.getGlobal(label.toLowerCase());
+      if (value == undefined) { return; }
+    }
+    socket.emit("send reporter", {hubnetMessageSource: "server", hubnetMessageTag: label, hubnetMessage:value});
     socket.emit("send command", {hubnetMessageTag: label, hubnetMessage:value});
   }
 
@@ -213,18 +266,24 @@ Interface = (function() {
     var viewHeight = parseFloat($(".netlogo-canvas").css("height"));
     var spanText;
     if (activityType === "hubnet") {
-      $(".netlogo-widget-container").append("<span class='teacher-controls hidden' style='float:right'><input id='enableMirroring' checked type='checkbox'>Enable Mirroring</span>");
+      $(".netlogo-widget-container").append("<span class='gbcc-widget teacher-controls hidden' style='float:right'><input id='enableMirroring' checked type='checkbox'>Enable: Mirroring</span>");
+      $(".teacher-controls").css("top", parseFloat($(".netlogo-view-container").css("top")) + parseFloat($(".netlogo-view-container").css("height")) - 0 + "px");
+      $(".teacher-controls").css("left", parseFloat($(".netlogo-view-container").css("left")) + parseFloat($(".netlogo-view-container").css("width")) - 128 + "px");
     } else {
-      spanText = "<span class='teacher-controls hidden' style='float:right'>Enable:";
+      spanText = "<span class='gbcc-widget teacher-controls mirror-controls hidden' style='float:right'>";
+      spanText += "<input id='enableMirroring' type='checkbox'>Mirror";
+      spanText += "<span>";
+      $(".netlogo-widget-container").append(spanText);
+      spanText = "<span class='gbcc-widget teacher-controls hidden' style='float:right'>";    
       spanText += "<input id='enableView' checked type='checkbox'>View";
       spanText += "<input id='enableTabs' checked type='checkbox'>Tabs";
-      spanText += "<input id='enableWidgets' checked type='checkbox'>Widgets</span>";
+      spanText += "<input id='enableGallery' checked type='checkbox'>Gallery</span>";
       $(".netlogo-widget-container").append(spanText);
+      $(".teacher-controls").css("left", parseFloat($(".netlogo-view-container").css("left")) + parseFloat($(".netlogo-canvas").css("width")) - 160 + "px");
+      $(".mirror-controls").css("left",parseFloat($(".netlogo-view-container").css("left")));
     }
     $(".teacher-controls").css("position","absolute");
-    $(".teacher-controls").css("left", parseFloat($(".netlogo-view-container").css("left")) + parseFloat($(".netlogo-canvas").css("width")) - 200 + "px");
     $(".teacher-controls").css("top", parseFloat($(".netlogo-view-container").css("top")) + parseFloat($(".netlogo-canvas").css("height")) + "px");
-
     $(".netlogo-view-container").css("width", $(".netlogo-view-container canvas").css("width"));
     $("#enableView").click(function() {
       socket.emit('teacher requests UI change', {'display': $(this).prop("checked"), 'type': 'view'});
@@ -232,12 +291,21 @@ Interface = (function() {
     $("#enableTabs").click(function() {
       socket.emit('teacher requests UI change', {'display': $(this).prop("checked"), 'type': 'tabs'});
     });
-    $("#enableWidgets").click(function() {
-      socket.emit('teacher requests UI change', {'display': $(this).prop("checked"), 'type': 'widgets'});
+    $("#enableGallery").click(function() {
+      socket.emit('teacher requests UI change', {'display': $(this).prop("checked"), 'type': 'gallery'});
     });
     $("#enableMirroring").click(function() {
       mirroringEnabled = $(this).prop("checked") ? true : false;
-      socket.emit('teacher requests UI change', {'display': mirroringEnabled, 'type': 'view'});
+      if (mirroringEnabled) {
+        var state = world.exportCSV();
+        var blob = myCanvas.toDataURL("image/png", 0.5); 
+        socket.emit('teacher requests UI change', {'display': mirroringEnabled, 'state': state, 'type': 'mirror', 'image': blob});
+      } else {
+        socket.emit('teacher requests UI change', {'display': mirroringEnabled, 'state': "", 'type': 'mirror' });        
+      }
+      if (activityType === "hubnet") {
+        socket.emit('teacher requests UI change', {'display': mirroringEnabled, 'type': 'view'});
+      }
     });
   }
 
@@ -249,100 +317,126 @@ Interface = (function() {
       $("#"+items[i]).removeClass("hidden");
     }
   }
-  
-  function setupExtensions() {
-    Graph.setupInterface();
-  }
-  
-  function importImageFile() {
-    var fileInput = document.getElementById("importDrawingFileElem");
-    var xmin = $("#importDrawingFileElem").attr("xmin");
-    var ymin = $("#importDrawingFileElem").attr("ymin");
-    var width = $("#importDrawingFileElem").attr("width");
-    var height = $("#importDrawingFileElem").attr("height");
-    //var files = fileInput.files;
-    var file = fileInput.files[0];
-    var filename = file.name;
-    var src = (window.URL || window.webkitURL).createObjectURL(file);
-    if ($("#"+filename.replace(".","")+"-"+xmin+"-"+ymin+"-"+width+"-"+height).length > 0) {
-      $("#"+filename.replace(".","")+"-"+xmin+"-"+ymin+"-"+width+"-"+height).attr("src",src);
-    } else {
-      $("body").append("<img class='uploadImage' id='"+filename.replace(".","")+"-"+xmin+"-"+ymin+"-"+width+"-"+height+"' xmin=\""+xmin+"\" ymin=\""+ymin+"\" width=\""+width+"\" height=\""+height+"\" src='"+src+"' style='display:none'>");
-    }
-    universe.repaint();
-  }
-  
-  //gbcc:import-drawing ["img-from-webpage" "https://www.google.com" 0 0 200 200]
-  //gbcc:import-drawing ["img-from-file-upload" "" 0 0 200 200 ]
-  //gbcc:import-drawing ["img-from-file" "glacier.jpg" 0 0 200 200]
-  //gbcc:import-drawing ["img-remove" "" 0 0 0 0]
-  function importDrawing(data) {
-    var action = data[0];
-    var filename = data[1];
-    var xmin = data[2];
-    var ymin = data[3];
-    var width = data[4];
-    var height = data[5];
-    if (action === "img-remove") {
-      repaintPatches = true;
-      $(".uploadImage").remove();
-      universe.repaint();
-    } else {
-      repaintPatches = false;
-      if (action === "img-from-webpage") {
-        // Code from: https://shkspr.mobi/blog/2015/11/google-secret-screenshot-api/
-        site = filename;
-        filename = "screenshot-from-url-"+$(".uploadImage").length;
-        $.ajax({
-          url: 'https://www.googleapis.com/pagespeedonline/v1/runPagespeed?url=' + site + '&screenshot=true',
-          context: this,
-          type: 'GET',
-          dataType: 'json',
-          success: function(allData) {
-            imgData = allData.screenshot.data.replace(/_/g, '/').replace(/-/g, '+');
-            imgData = 'data:image/jpeg;base64,' + imgData;
-            if ($("#"+filename.replace(".","")+"-"+xmin+"-"+ymin+"-"+width+"-"+height).length > 0) {
-              $("#"+filename.replace(".","")+"-"+xmin+"-"+ymin+"-"+width+"-"+height).attr("src",imgData);
-            } else {
-              $("body").append("<img class='uploadImage' id='"+filename+"-"+xmin+"-"+ymin+"-"+width+"-"+height+"' xmin=\""+xmin+"\" ymin=\""+ymin+"\" width=\""+width+"\" height=\""+height+"\" src='"+imgData+"' style='display:none'>");
-            }
-            universe.repaint();
-          }
-        });
-      } else if (action === "img-from-file-upload") {
-        $("#importDrawingFileElem").attr("xmin",xmin);
-        $("#importDrawingFileElem").attr("ymin",ymin);
-        $("#importDrawingFileElem").attr("width",width);
-        $("#importDrawingFileElem").attr("height",height);
-        $("#importDrawingFileElem").click();
-      } else if (action === "img-from-file") {
-        $.get("images/"+filename)
-        .done(function() { 
-          // Do something now you know the image exists.
-          if ($("#"+filename.replace(".","")+"-"+xmin+"-"+ymin+"-"+width+"-"+height).length > 0) {
-            $("#"+filename.replace(".","")+"-"+xmin+"-"+ymin+"-"+width+"-"+height).attr("src","images/"+filename);
-          } else {
-            $("body").append("<img class='uploadImage' id='"+filename.replace(".","")+"-"+xmin+"-"+ymin+"-"+width+"-"+height+"' xmin=\""+xmin+"\" ymin=\""+ymin+"\" width=\""+width+"\" height=\""+height+"\" src='images/"+filename+"' style='display:none'>");
-          }
-          universe.repaint();
-        }).fail(function() { 
-        // Image doesn't exist - do something else.
-        });
-        
-        
-      }
-    }
+
+  function setupEnvironment(name) {
+    var container = name + "Container";
+    var spanText =  "<div class='gbcc-widget' id='"+container+"'></div>";
+    $(".netlogo-widget-container").append(spanText);
+    $("#"+container).css("width", parseFloat($(".netlogo-canvas").css("width")) - 1 + "px");
+    $("#"+container).css("height", parseFloat($(".netlogo-canvas").css("height")) - 1 + "px");
+    $("#"+container).css("left", $(".netlogo-view-container").css("left"));
+    $("#"+container).css("top", $(".netlogo-view-container").css("top"));
+    $("#"+container).css("display", "none");
+    $("body").append(spanText);
+    $(".netlogo-view-container").css("background-color","transparent"); 
   }
 
+  function showEnvironment(name) {    
+    var container = name + "Container"; 
+    drawPatches = false;
+    $("#graphContainer").css("display","none");
+    $("#mapContainer").css("display","none");
+    $("#"+container).css("left", $(".netlogo-view-container").css("left"));
+    $("#"+container).css("top", $(".netlogo-view-container").css("top"));
+    $("#"+container).css("display","inline-block");
+    $(".netlogo-view-container").css("z-index","0");
+    $("#opacityWrapper").css("top",parseInt($("#"+container).css("top") - 15) + "px");
+    $("#opacityWrapper").css("left",$("#"+container).css("left"));
+    $("#opacityWrapper").css("display", "inline-block");
+    mouseOn("graph");
+    mouseOn("map");
+  }
+  
+  function hideEnvironment(name) {
+    var container = name + "Container";
+    drawPatches = true;
+    world.triggerUpdate();
+    $("#"+container).css("display","none");
+    $(".netlogo-view-container").css("z-index","0");
+    $(".netlogo-view-container").css("pointer-events","auto");
+    //$("#"+container).css("display", "none");
+    $("#opacityWrapper").css("display", "none");
+    mouseOff("graph");
+    mouseOff("map");
+  }
+
+  function bringToFront(name) {
+    var container = name + "Container";
+    $("#"+container).css("z-index","3");
+    $(".netlogo-view-container").css("z-index","0");
+  } 
+  
+  function sendToBack(name) {
+    var container = name + "Container";
+    $("#"+container).css("z-index","0");
+    $(".netlogo-view-container").css("z-index","1"); 
+  }
+  
+  function mouseOn(name) {
+    var container = name + "Container";
+    $(".netlogo-view-container").css("pointer-events","none");
+    $("#"+container).css("pointer-events","auto");
+  }
+  
+  function mouseOff(name) {
+    var container = name + "Container";
+    $(".netlogo-view-container").css("pointer-events","auto");
+    $("#"+container).css("pointer-events","none");
+  }
+
+  function setOpacity(name, value) {
+    var container = name + "Container";
+    $("#"+container).css("opacity", value);
+    $("#opacity").val(value * 100);
+  }
+  
+  function getOpacity(name) {
+    var container = name + "Container";
+    return parseFloat($("#"+container).css("opacity"));
+  }
+  
+  function setGraphOffset(name, offset)  {
+    var container = name + "Container";
+    var top = offset[1] + "px";
+    var left = offset[0] + "px";
+    $("#"+container).css("top", top);
+    $("#"+container).css("left", left);   
+    if (offset.length === 4) {
+      var height = offset[3] + "px";
+      var width = offset[2] + "px";
+      $("#"+container).css("height", height);
+      $("#"+container).css("width", width);   
+    }
+  }
+  
+  function getGraphOffset() {
+    var container = name + "Container";
+    var top = parseInt($("#"+container).css("top"));
+    var left = parseInt($("#"+container).css("left"));
+    var height = parseInt($("#"+container).css("height"));
+    var width = parseInt($("#"+container).css("width"));   
+    return [ left, top, width, height ]
+  };
+  
   return {
     showLogin: displayLoginInterface,
+    removeLogin: removeLoginButton,
     showTeacher: displayTeacherInterface,
     showStudent: displayStudentInterface,
     showDisconnected: displayDisconnectedInterface,
     showAdmin: displayAdminInterface,
     clearRoom: clearRoom,
-    importDrawing: importDrawing,
-    importImageFile: importImageFile
+    bringToFront: bringToFront,
+    sendToBack: sendToBack,
+    setOpacity: setOpacity,
+    getOpacity: getOpacity,
+    setGraphOffset: setGraphOffset,
+    getGraphOffset: getGraphOffset,
+    mouseOn: mouseOn,
+    mouseOff: mouseOff,
+    setupEnvironment: setupEnvironment,
+    showEnvironment: showEnvironment,
+    hideEnvironment: hideEnvironment
   };
  
 })();
